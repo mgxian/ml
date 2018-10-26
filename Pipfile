@@ -1,0 +1,19 @@
+[[source]]
+url = "http://pypi.douban.com/simple"
+verify_ssl = false
+name = "pypi"
+
+[packages]
+numpy = "*"
+pandas = "*"
+sklearn = "*"
+matplotlib = "*"
+scikit-learn = "*"
+
+[dev-packages]
+pylint = "*"
+"autopep8" = "*"
+ipython = "*"
+
+[requires]
+python_version = "3.6"
