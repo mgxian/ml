@@ -223,6 +223,7 @@ tree_rmse = np.sqrt(tree_mse)
 
 
 # 6.3 交叉验证
+from sklearn.model_selection import cross_val_score
 
 
 def display_scores(scores):
@@ -231,21 +232,20 @@ def display_scores(scores):
     print("Standard deviation:", scores.std())
 
 
-# from sklearn.model_selection import cross_val_score
-# scores = cross_val_score(tree_reg, housing_prepared,
-#                          train_housing_labels, scoring="neg_mean_squared_error", cv=10)
-# tree_rmse_scores = np.sqrt(-scores)
+scores = cross_val_score(tree_reg, housing_prepared,
+                         train_housing_labels, scoring="neg_mean_squared_error", cv=10)
+tree_rmse_scores = np.sqrt(-scores)
 
-# lin_scores = cross_val_score(
-#     lin_reg, housing_prepared, train_housing_labels, scoring="neg_mean_squared_error", cv=10)
-# lin_rmse_scores = np.sqrt(-lin_scores)
+lin_scores = cross_val_score(
+    lin_reg, housing_prepared, train_housing_labels, scoring="neg_mean_squared_error", cv=10)
+lin_rmse_scores = np.sqrt(-lin_scores)
 
 # forest_scores = cross_val_score(
 #     forest_reg, housing_prepared, train_housing_labels, scoring="neg_mean_squared_error", cv=10)
 # forest_rmse_scores = np.sqrt(-forest_scores)
 
-# display_scores(lin_rmse_scores)
-# display_scores(tree_rmse_scores)
+display_scores(lin_rmse_scores)
+display_scores(tree_rmse_scores)
 # display_scores(forest_rmse_scores)
 
 # scores = cross_val_score(lin_reg, housing_prepared,
@@ -302,6 +302,7 @@ cvres = rnd_search.cv_results_
 # for mean_score, params in zip(cvres["mean_test_score"], cvres["params"]):
 #     print(np.sqrt(-mean_score), params)
 
+# %%
 # 查看特征对预测结果的贡献程度
 feature_importances = rnd_search.best_estimator_.feature_importances_
 print(feature_importances)
@@ -359,6 +360,9 @@ my_model_loaded = joblib.load("my_model.pkl")
 
 # %%
 # 可视化分布 RandomizedSearchCV
+# rvs 产生服从指定分布的随机数
+# expon 指数分布
+# geom 几何分布
 from scipy.stats import geom, expon
 geom_distrib = geom(0.5).rvs(10000, random_state=42)
 expon_distrib = expon(scale=1).rvs(10000, random_state=42)
@@ -368,6 +372,7 @@ plt.hist(expon_distrib, bins=50)
 plt.show()
 
 # %%
+# 练习题 1
 from sklearn.svm import SVR
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error
@@ -379,7 +384,7 @@ param_grid = [
                              1000.0], 'gamma':[0.01, 0.03, 0.1, 0.3, 1.0, 3.0]},
 ]
 svm_reg = SVR()
-grid_search = GridSearchCV(estimator=svm_reg, param_grid=param_grid, cv=5,
+grid_search = GridSearchCV(svm_reg, param_grid=param_grid, cv=5,
                            scoring='neg_mean_squared_error', n_jobs=4, verbose=2)
 grid_search.fit(housing_prepared, train_housing_labels)
 negative_mse = grid_search.best_score_
@@ -387,6 +392,8 @@ print(grid_search.best_params_)
 print(np.sqrt(-negative_mse))
 
 # %%
+# 练习题 2
+# reciprocal 倒数
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import expon, reciprocal
 param_distribs = {
@@ -398,7 +405,7 @@ svm_reg = SVR()
 # n_jobs 同时运行的job数
 # n_iter 迭代次数
 # cv 交叉验证的k值
-rnd_search = RandomizedSearchCV(estimator=svm_reg, param_distributions=param_distribs,
+rnd_search = RandomizedSearchCV(svm_reg, param_distributions=param_distribs,
                                 n_iter=50, cv=5, scoring='neg_mean_squared_error',
                                 verbose=2, n_jobs=4, random_state=42)
 rnd_search.fit(housing_prepared, train_housing_labels)
@@ -407,7 +414,7 @@ print(grid_search.best_params_)
 print(np.sqrt(-negative_mse))
 
 # %%
-from scipy.stats import expon, reciprocal
+from scipy.stats import expon
 expon_distrib = expon(scale=1.)
 samples = expon_distrib.rvs(10000, random_state=42)
 plt.figure(figsize=(10, 4))
@@ -421,7 +428,7 @@ plt.show()
 display.display(samples.max(), samples.min(), len(samples))
 
 # %%
-from scipy.stats import expon, reciprocal
+from scipy.stats import reciprocal
 reciprocal_distrib = reciprocal(20, 200000)
 samples = reciprocal_distrib.rvs(10000, random_state=42)
 plt.figure(figsize=(10, 4))
@@ -433,3 +440,68 @@ plt.title("Log of this distribution")
 plt.hist(np.log(samples), bins=50)
 plt.show()
 display.display(samples.max(), samples.min(), len(samples))
+
+# %%
+# 练习题 3
+from sklearn.base import TransformerMixin, BaseEstimator
+
+
+def indices_of_top_k(arr, k):
+    return np.sort(np.argpartition(np.array(arr), -k)[-k:])
+
+
+class TopFeatureSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, feature_importances, k):
+        self.feature_importances = feature_importances
+        self.k = k
+
+    def fit(self, X, y=None):
+        self.feature_indices_ = indices_of_top_k(
+            self.feature_importances, self.k)
+        return self
+
+    def transform(self, X, y=None):
+        return X[:, self.feature_indices_]
+
+
+k = 5
+top_k_feature_indices = indices_of_top_k(feature_importances, k)
+# print(top_k_feature_indices)
+preparation_and_feature_selection_pipeline = Pipeline([
+    ('preparation', full_pipeline),
+    ('feature_selection', TopFeatureSelector(feature_importances, k))
+])
+
+housing_prepared_top_k_features = preparation_and_feature_selection_pipeline.fit_transform(
+    train_housing)
+housing_prepared_top_k_features[0:3]
+housing_prepared[0:3, top_k_feature_indices]
+
+# %%
+# 练习题 4
+prepare_select_and_predict_pipeline = Pipeline([
+    ("preparation", full_pipeline),
+    ("feature_selection", TopFeatureSelector(feature_importances, k)),
+    ("linear", LinearRegression())
+])
+some_data = train_housing.iloc[:5]
+some_labels = train_housing_labels.iloc[:5]
+prepare_select_and_predict_pipeline.fit(train_housing, train_housing_labels)
+print(prepare_select_and_predict_pipeline.predict(some_data))
+print(some_labels.values)
+
+# %%
+# 练习题 5
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVR
+
+param_grid = [
+    {'preparation__num__imputer__strategy': ['mean', 'median', 'most_frequent'],
+     'feature_selection__k': list(range(1, len(feature_importances) + 1))}
+]
+
+grid_search_prep = GridSearchCV(prepare_select_and_predict_pipeline,
+                                param_grid, cv=5, scoring='neg_mean_squared_error',
+                                verbose=2, n_jobs=4)
+grid_search_prep.fit(train_housing, train_housing_labels)
+print(grid_search_prep.best_params_)
